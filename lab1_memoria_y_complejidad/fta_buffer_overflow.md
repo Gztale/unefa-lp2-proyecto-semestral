@@ -4,6 +4,38 @@
 - **TE:** Ocurrencia de un *Buffer Overflow* (escritura más allá de los límites asignados a un búfer en memoria).
 
 ## 2. Estructura del Árbol de Fallos
+```text
+[ EVENTO TOPE: Desbordamiento de Búfer (Buffer Overflow) ]
+                                            |
+                                    | COMPUERTA OR |
+                                    +--------------+
+                                    /              \
+                                   /                \
+        [ G1: Stack Buffer Overflow ]              [ G2: Heap Buffer Overflow ]
+      (Búfer ubicado en el *stack*)              (Búfer asignado en el *heap*)
+                      \                                /
+                       \                              /
+                        +--------------+---------------+
+                                       |
+                                | COMPUERTA AND |
+                                +---------------+
+                                /       |       \
+                               /        |        \
+    [ C1: Búfer de capacidad ]  [ C2: Escritura de ]  [ C3: Sin validación ]
+    [     máxima N bytes     ]  [ tamaño M > N     ]  [ previa de límites  ]
+                                        |
+                                 | COMPUERTA OR |
+                                 +--------------+
+                                 /      |       \
+       +------------------------+       |        +------------------------+
+       |                                |                                 |
+[ BE1: Entrada externa ]       [ BE2: Cálculo erróneo ]         [ BE3: Copia/lectura ]
+[ sin límite verificado]       [ de tamaño o índice   ]         [ sin cota explícita ]
+       |                                |                                 |
+       +------------------------+       |        +------------------------+
+                                        |
+                             [ BE4: Manejo deficiente ]
+                             [ de punteros o rangos   ]
 - **TE** se activa mediante una compuerta **OR** a partir de:
   - **G1 (Stack Buffer Overflow):** desbordamiento sobre un búfer ubicado en la pila (*stack*).
   - **G2 (Heap Buffer Overflow):** desbordamiento sobre un bloque asignado dinámicamente en el *heap*.
