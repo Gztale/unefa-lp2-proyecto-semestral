@@ -1,0 +1,24 @@
+# Binarios y archivos compilados (C / Go / generales)
+*.exe
+*.out
+*.o
+*.obj
+*.so
+*.dylib
+*.dll
+*.test
+
+# Dependencias y entornos comunes en proyectos de labs
+node_modules/
+__pycache__/
+*.pyc
+.env
+.env.*
+!.env.example
+
+# Archivos temporales o del sistema / editor
+*.tmp
+*.bak
+*.swp
+.DS_Store
+Thumbs.db
