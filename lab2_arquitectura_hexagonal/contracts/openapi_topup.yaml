@@ -1,0 +1,251 @@
+openapi: 3.1.0
+info:
+  title: API de Pasarela de Recarga de Saldo (Arquitectura Hexagonal)
+  version: 1.0.0
+  description: >
+    Contrato normativo OAS 3.1 para operaciones de recarga convergente TelCo/FinTech,
+    implementando semántica RFC 7231, validación ITU-T E.164, montos en centavos enteros
+    y control de idempotencia mediante Idempotency-Key.
+
+servers:
+  - url: http://localhost:8080
+    description: Servidor local de desarrollo
+
+paths:
+  /v1/topups:
+    post:
+      summary: Crear y procesar una nueva recarga de saldo
+      operationId: createTopup
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKeyHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TopupCreateRequest"
+            example:
+              id: "tx_001"
+              msisdn: "+584121234567"
+              monto_centavos: 500
+      responses:
+        "201":
+          description: Recarga creada y procesada exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TopupResponse"
+        "400":
+          description: Solicitud mal formada o cabecera Idempotency-Key ausente/inválida
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Conflicto por reutilización de Idempotency-Key con un payload distinto
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: Entidad no procesable por violación de regla de negocio o formato E.164/monto
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /v1/topups/{transaction_id}:
+    put:
+      summary: Crear o actualizar una recarga de forma idempotente por ID de transacción (RFC 7231)
+      operationId: upsertTopupById
+      parameters:
+        - $ref: "#/components/parameters/TransactionIdPath"
+        - $ref: "#/components/parameters/IdempotencyKeyHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TopupUpsertRequest"
+            example:
+              msisdn: "+584149876543"
+              monto_centavos: 1000
+      responses:
+        "200":
+          description: Transacción actualizada o devuelta de forma idempotente
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TopupResponse"
+        "201":
+          description: Transacción creada mediante PUT idempotente
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TopupResponse"
+        "400":
+          description: Parámetros inválidos o cabecera Idempotency-Key inválida
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Conflicto de estado o idempotencia con datos incompatibles
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: Entidad no procesable por formato E.164, monto o transición de estado inválida
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    get:
+      summary: Consultar el estado actual de una recarga por su identificador
+      operationId: getTopupById
+      parameters:
+        - $ref: "#/components/parameters/TransactionIdPath"
+      responses:
+        "200":
+          description: Transacción encontrada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TopupResponse"
+        "400":
+          description: Identificador de transacción inválido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Conflicto en el estado de consulta de la transacción
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: Identificador no procesable según las reglas del dominio
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+components:
+  parameters:
+    IdempotencyKeyHeader:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: Clave única en formato UUID v4 para garantizar idempotencia y evitar cobros duplicados.
+      schema:
+        type: string
+        format: uuid
+        pattern: "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+        example: "550e8400-e29b-41d4-a716-446655440000"
+
+    TransactionIdPath:
+      name: transaction_id
+      in: path
+      required: true
+      description: Identificador único de la transacción de recarga.
+      schema:
+        type: string
+        minLength: 3
+        maxLength: 64
+        example: "tx_001"
+
+  schemas:
+    TopupCreateRequest:
+      type: object
+      required:
+        - id
+        - msisdn
+        - monto_centavos
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          minLength: 3
+          maxLength: 64
+          example: "tx_001"
+        msisdn:
+          type: string
+          pattern: "^\\+[1-9]\\d{6,14}$"
+          description: Número telefónico internacional en formato ITU-T E.164.
+          example: "+584121234567"
+        monto_centavos:
+          type: integer
+          format: int64
+          minimum: 100
+          description: Monto de la recarga expresado en centavos enteros (mínimo 100).
+          example: 500
+
+    TopupUpsertRequest:
+      type: object
+      required:
+        - msisdn
+        - monto_centavos
+      additionalProperties: false
+      properties:
+        msisdn:
+          type: string
+          pattern: "^\\+[1-9]\\d{6,14}$"
+          description: Número telefónico internacional en formato ITU-T E.164.
+          example: "+584121234567"
+        monto_centavos:
+          type: integer
+          format: int64
+          minimum: 100
+          description: Monto de la recarga expresado en centavos enteros (mínimo 100).
+          example: 500
+
+    TopupResponse:
+      type: object
+      required:
+        - id
+        - idempotency_key
+        - msisdn
+        - monto_centavos
+        - estado
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          example: "tx_001"
+        idempotency_key:
+          type: string
+          format: uuid
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        msisdn:
+          type: string
+          pattern: "^\\+[1-9]\\d{6,14}$"
+          example: "+584121234567"
+        monto_centavos:
+          type: integer
+          format: int64
+          minimum: 100
+          example: 500
+        estado:
+          type: string
+          enum:
+            - PENDIENTE
+            - APROBADA
+            - RECHAZADA
+          example: "APROBADA"
+
+    ErrorResponse:
+      type: object
+      required:
+        - codigo
+        - mensaje
+      additionalProperties: false
+      properties:
+        codigo:
+          type: string
+          example: "INVALID_E164"
+        mensaje:
+          type: string
+          example: "el número telefónico no cumple con el estándar ITU-T E.164"
