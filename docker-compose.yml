@@ -24,7 +24,7 @@ services:
   scylla-node1:
     image: scylladb/scylla:5.4
     container_name: scylla-node1
-    command: --smp 1 --memory 1G --overprovisioned 1 --developer-mode 1
+    command: --smp 1 --memory 512M --overprovisioned 1 --developer-mode 1
     ports:
       - "9042:9042"
     volumes:
